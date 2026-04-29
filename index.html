@@ -1219,12 +1219,12 @@ function AppComponent() {
           {revTarget&&<p style={{fontSize:13,color:c.t2,marginBottom:20}}>Pour <strong>{revTarget.name}</strong> · {revTarget.type==="driver"?"Conducteur 🚗":"Passager 🧑‍🤝‍🧑"}</p>}
 
           {/* Étoiles grandes et claires */}
-          <div style={{background:c.bg2,borderRadius:14,padding:"20px 16px",marginBottom:16,textAlign:"center"}}>
+          <div style={{background:"#fff",borderRadius:14,padding:"20px 16px",marginBottom:16,textAlign:"center",border:`1px solid ${c.border}`}}>
             <p style={{fontSize:12,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:14}}>Note globale</p>
             <div style={{display:"flex",justifyContent:"center",gap:10,marginBottom:10}}>
               {[1,2,3,4,5].map(s=>(
-                <button key={s} onClick={()=>setRevStars(s)} style={{background:"none",border:"none",padding:4,transition:"transform .15s",transform:s<=revStars?"scale(1.25)":"scale(1)"}}>
-                  <Icon name="star" size={36} color={s<=revStars?"#FDCB6E":c.bg4} sw={s<=revStars?0:1.5}/>
+                <button key={s} onClick={()=>setRevStars(s)} style={{background:"none",border:"none",padding:4,transition:"transform .15s",transform:s<=revStars?"scale(1.25)":"scale(1)",cursor:"pointer"}}>
+                  <Icon name="star" size={36} color={s<=revStars?"#F59E0B":"#CBD5E1"} sw={s<=revStars?0:2}/>
                 </button>
               ))}
             </div>
@@ -1235,7 +1235,7 @@ function AppComponent() {
           </div>
 
           {/* Critères détaillés */}
-          <div style={{background:c.bg2,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:16,border:`1px solid ${c.border}`}}>
             <p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Évaluation détaillée</p>
             {(revTarget?.type==="driver"?[
               {label:"Ponctualité",key:"punct"},
@@ -1248,11 +1248,11 @@ function AppComponent() {
             ]).map(({label,key})=>(
               <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <p style={{fontSize:13,fontWeight:500,color:c.t1,margin:0}}>{label}</p>
-                <div style={{display:"flex",gap:4}}>
+                <div style={{display:"flex",gap:6}}>
                   {[1,2,3,4,5].map(s=>{
                     const filled=s<=(revDetails[key]||0);
-                    return <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:1,cursor:"pointer"}}>
-                      <Icon name="star" size={18} color={filled?"#FDCB6E":"#9BA8B0"} sw={filled?0:1.8}/>
+                    return <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:0,cursor:"pointer",lineHeight:1}}>
+                      <Icon name="star" size={22} color={filled?"#F59E0B":"#CBD5E1"} sw={filled?0:2}/>
                     </button>;
                   })}
                 </div>
