@@ -1219,24 +1219,23 @@ function AppComponent() {
           {revTarget&&<p style={{fontSize:13,color:c.t2,marginBottom:20}}>Pour <strong>{revTarget.name}</strong> · {revTarget.type==="driver"?"Conducteur 🚗":"Passager 🧑‍🤝‍🧑"}</p>}
 
           {/* Étoiles grandes et claires */}
-          <div style={{background:"#fff",borderRadius:14,padding:"20px 16px",marginBottom:16,textAlign:"center",border:`1px solid ${c.border}`}}>
-            <p style={{fontSize:12,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:14}}>Note globale</p>
-            <div style={{display:"flex",justifyContent:"center",gap:10,marginBottom:10}}>
+          <div style={{background:"#fff",borderRadius:14,padding:"20px 16px",marginBottom:16,textAlign:"center",border:"1px solid #E2E8F0"}}>
+            <p style={{fontSize:12,fontWeight:600,color:"#94A3B8",textTransform:"uppercase",letterSpacing:".7px",marginBottom:14}}>Note globale</p>
+            <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10}}>
               {[1,2,3,4,5].map(s=>(
-                <button key={s} onClick={()=>setRevStars(s)} style={{background:"none",border:"none",padding:4,transition:"transform .15s",transform:s<=revStars?"scale(1.25)":"scale(1)",cursor:"pointer"}}>
-                  <Icon name="star" size={36} color={s<=revStars?"#F59E0B":"#CBD5E1"} sw={s<=revStars?0:2}/>
-                </button>
+                <span key={s} onClick={()=>setRevStars(s)}
+                  style={{fontSize:44,cursor:"pointer",color:s<=revStars?"#F59E0B":"#CBD5E1",lineHeight:1,transition:"transform .15s",display:"inline-block",transform:s<=revStars?"scale(1.15)":"scale(1)",userSelect:"none",WebkitUserSelect:"none"}}>★</span>
               ))}
             </div>
-            <p style={{fontSize:22,fontWeight:700,color:c.t1,margin:"0 0 4px"}}>{revStars}/5</p>
-            <p style={{fontSize:13,color:c.t2,margin:0}}>
+            <p style={{fontSize:22,fontWeight:700,color:"#2D3436",margin:"8px 0 4px"}}>{revStars}/5</p>
+            <p style={{fontSize:13,color:"#636E72",margin:0}}>
               {revStars===1?"😬 Très mauvaise expérience":revStars===2?"😕 Mauvaise expérience":revStars===3?"😐 Expérience correcte":revStars===4?"😊 Bonne expérience":"🌟 Excellente expérience"}
             </p>
           </div>
 
           {/* Critères détaillés */}
-          <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:16,border:`1px solid ${c.border}`}}>
-            <p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Évaluation détaillée</p>
+          <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:16,border:"1px solid #E2E8F0"}}>
+            <p style={{fontSize:11,fontWeight:600,color:"#94A3B8",textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Évaluation détaillée</p>
             {(revTarget?.type==="driver"?[
               {label:"Ponctualité",key:"punct"},
               {label:"Conduite",key:"drive"},
@@ -1246,14 +1245,13 @@ function AppComponent() {
               {label:"Comportement",key:"nice"},
               {label:"Communication",key:"comm"},
             ]).map(({label,key})=>(
-              <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <p style={{fontSize:13,fontWeight:500,color:c.t1,margin:0}}>{label}</p>
-                <div style={{display:"flex",gap:6}}>
+              <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <p style={{fontSize:13,fontWeight:500,color:"#2D3436",margin:0}}>{label}</p>
+                <div style={{display:"flex",gap:4}}>
                   {[1,2,3,4,5].map(s=>{
                     const filled=s<=(revDetails[key]||0);
-                    return <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:0,cursor:"pointer",lineHeight:1}}>
-                      <Icon name="star" size={22} color={filled?"#F59E0B":"#CBD5E1"} sw={filled?0:2}/>
-                    </button>;
+                    return <span key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))}
+                      style={{fontSize:24,cursor:"pointer",color:filled?"#F59E0B":"#CBD5E1",lineHeight:1,userSelect:"none",WebkitUserSelect:"none"}}>★</span>;
                   })}
                 </div>
               </div>
