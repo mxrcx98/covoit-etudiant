@@ -782,7 +782,90 @@ const CITIES=["Lausanne","Genève","Berne","Neuchâtel","Fribourg","Zürich","B�
 const TAGS=["Non-fumeur","Musique","Animaux","Grands bagages","Calme","Podcast","Climatisation","Chargeur USB"];
 const DAYS=["Lu","Ma","Me","Je","Ve","Sa","Di"];
 
-// Calcule le prix avec majoration heure creuse (<6h30 ou >22h = +25%)
+// ─── MOTEUR DE PRICING ──────────────────────────────────────────────
+// Prix essence SP95 actuel en Suisse (TCS avril 2026) — CHF/L
+const ESSENCE_REF = 1.90;   // référence de base du modèle
+const ESSENCE_ACTUEL = 1.82; // prix réel TCS avril 2026
+const KM_BASE = 0.22;        // CHF/km (coûts variables uniquement)
+const KM_MIN  = 0.15;        // plancher
+const KM_MAX  = 0.30;        // plafond
+const MARGIN_DRIVER = 0.15;  // marge conducteur ±15%
+
+// Distances routières réalistes entre villes suisses (km)
+const DIST = {
+  "Lausanne-Genève":62,"Genève-Lausanne":62,
+  "Lausanne-Berne":107,"Berne-Lausanne":107,
+  "Lausanne-Fribourg":73,"Fribourg-Lausanne":73,
+  "Lausanne-Neuchâtel":70,"Neuchâtel-Lausanne":70,
+  "Lausanne-Sion":100,"Sion-Lausanne":100,
+  "Lausanne-Zürich":225,"Zürich-Lausanne":225,
+  "Lausanne-Bâle":185,"Bâle-Lausanne":185,
+  "Lausanne-Lugano":202,"Lugano-Lausanne":202,
+  "Lausanne-Yverdon":36,"Yverdon-Lausanne":36,
+  "Lausanne-Nyon":30,"Nyon-Lausanne":30,
+  "Lausanne-Morges":16,"Morges-Lausanne":16,
+  "Lausanne-Vevey":22,"Vevey-Lausanne":22,
+  "Lausanne-Montreux":28,"Montreux-Lausanne":28,
+  "Genève-Berne":159,"Berne-Genève":159,
+  "Genève-Fribourg":118,"Fribourg-Genève":118,
+  "Genève-Neuchâtel":115,"Neuchâtel-Genève":115,
+  "Genève-Sion":155,"Sion-Genève":155,
+  "Genève-Zürich":280,"Zürich-Genève":280,
+  "Genève-Nyon":27,"Nyon-Genève":27,
+  "Neuchâtel-Berne":48,"Berne-Neuchâtel":48,
+  "Neuchâtel-Fribourg":48,"Fribourg-Neuchâtel":48,
+  "Neuchâtel-Zürich":175,"Zürich-Neuchâtel":175,
+  "Neuchâtel-Yverdon":37,"Yverdon-Neuchâtel":37,
+  "Fribourg-Berne":34,"Berne-Fribourg":34,
+  "Fribourg-Zürich":155,"Zürich-Fribourg":155,
+  "Zürich-Berne":128,"Berne-Zürich":128,
+  "Zürich-Bâle":87,"Bâle-Zürich":87,
+  "Zürich-Lugano":215,"Lugano-Zürich":215,
+  "Zürich-St-Gallen":75,"St-Gallen-Zürich":75,
+  "Zürich-Lucerne":55,"Lucerne-Zürich":55,
+  "Berne-Bâle":95,"Bâle-Berne":95,
+  "Berne-Sion":130,"Sion-Berne":130,
+  "Sion-Montreux":55,"Montreux-Sion":55,
+  "Sion-Vevey":65,"Vevey-Sion":65,
+  "Lucerne-Berne":100,"Berne-Lucerne":100,
+  "Lucerne-Bâle":100,"Bâle-Lucerne":100,
+};
+
+// Profil zone selon l'itinéraire (heuristique simple)
+function getZoneType(from, to){
+  const mountain = ["Sion","Lugano","Montreux","Vevey"];
+  const highway  = ["Zürich","Bâle","Berne","Genève","Lausanne","Lucerne"];
+  if(mountain.includes(from)||mountain.includes(to)) return "mountain";
+  if(highway.includes(from)&&highway.includes(to)) return "autoroute";
+  return "mix";
+}
+const ZONE_FACTOR = { urban:1.1, mix:1.0, autoroute:0.95, mountain:1.15 };
+function getDistFactor(km){ return km<20?1.15:km>80?0.9:1.0; }
+
+// Calcule la distance entre deux villes
+function getKm(from, to){
+  const key = `${from}-${to}`;
+  if(DIST[key]) return DIST[key];
+  // fallback estimation si non trouvé
+  return Math.floor(80 + Math.random()*60);
+}
+
+// Prix recommandé par passager (arrondi au 0.50 CHF le plus proche)
+function calcRecommendedPrice(from, to, seats=2){
+  if(!from||!to||from===to) return null;
+  const km = getKm(from,to);
+  const zone = getZoneType(from,to);
+  const zoneFactor = ZONE_FACTOR[zone]||1.0;
+  const distFactor = getDistFactor(km);
+  let prixKm = KM_BASE * (ESSENCE_ACTUEL/ESSENCE_REF) * zoneFactor * distFactor;
+  prixKm = Math.max(KM_MIN, Math.min(KM_MAX, prixKm));
+  const total = km * prixKm;
+  const perPax = total / Math.max(1, seats);
+  // Arrondi au 0.50 CHF le plus proche
+  return Math.round(perPax * 2) / 2;
+}
+
+// Majoration hors-horaire (<6h30 ou >22h = +25%)
 function calcDisplayPrice(price, time){
   if(!time) return price;
   const [h,m]=time.split(":").map(Number);
@@ -796,6 +879,7 @@ function isOffPeak(time){
   const mins=h*60+(m||0);
   return mins < 6*60+30 || mins >= 22*60;
 }
+// ────────────────────────────────────────────────────────────────────
 
 const RIDES=[
   {id:1,driver:"Camille B.",ini:"CB",univ:"UNIL",rating:4.8,rev:23,from:"Lausanne",to:"Genève",date:"2026-03-13",time:"08:15",seats:3,left:2,price:6,tags:["Non-fumeur","Musique"],ok:true,co2:2.1,km:62,dur:"55 min",note:"Départ gare de Lausanne, côté Flon.",pass:["Alex M.","Julie T."],stops:[]},
@@ -828,7 +912,26 @@ function Stars({r,n,big=false}){
   </span>);
 }
 
-function Avi({ini,size=40,ok=false}){return(<div style={{position:"relative",flexShrink:0}}><div style={{width:size,height:size,borderRadius:"50%",background:c.bg3,border:`1px solid ${c.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.3,fontWeight:600,color:c.t1}}>{ini}</div>{ok&&<div style={{position:"absolute",bottom:0,right:0,width:14,height:14,borderRadius:"50%",background:c.green,border:`2px solid ${c.bg0}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={7} color="#fff" sw={3}/></div>}</div>);}
+// Photos de profil fixes par seed (Unsplash via picsum - libres de droit)
+const PROFILE_PHOTOS={
+  "CB":"https://picsum.photos/seed/CB-camille/80/80",
+  "HM":"https://picsum.photos/seed/HM-hugo/80/80",
+  "SR":"https://picsum.photos/seed/SR-sofia/80/80",
+  "TK":"https://picsum.photos/seed/TK-theo/80/80",
+  "ID":"https://picsum.photos/seed/ID-ines/80/80",
+  "RV":"https://picsum.photos/seed/RV-romain/80/80",
+};
+function Avi({ini,size=40,ok=false,photo=null}){
+  const src=photo||(ini&&PROFILE_PHOTOS[ini])||null;
+  return(<div style={{position:"relative",flexShrink:0}}>
+    {src
+      ?<img src={src} alt={ini} style={{width:size,height:size,borderRadius:"50%",border:`1px solid ${c.border}`,objectFit:"cover",display:"block"}} onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+      :<div style={{width:size,height:size,borderRadius:"50%",background:c.bg3,border:`1px solid ${c.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.3,fontWeight:600,color:c.t1}}>{ini}</div>
+    }
+    {src&&<div style={{width:size,height:size,borderRadius:"50%",background:c.bg3,border:`1px solid ${c.border}`,display:"none",alignItems:"center",justifyContent:"center",fontSize:size*.3,fontWeight:600,color:c.t1,position:"absolute",top:0,left:0}}>{ini}</div>}
+    {ok&&<div style={{position:"absolute",bottom:0,right:0,width:Math.max(12,size*.2),height:Math.max(12,size*.2),borderRadius:"50%",background:c.green,border:`2px solid ${c.bg0}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={Math.max(6,size*.1)} color="#fff" sw={3}/></div>}
+  </div>);
+}
 
 function Field({icon,ph,val,set,type="text",list,rows}){const[f,setF]=useState(false);const base={width:"100%",background:c.bg2,border:`1px solid ${f?c.green:c.border}`,borderRadius:10,fontSize:14,color:c.t1,transition:"border-color .15s"};if(rows)return <textarea rows={rows} value={val} onChange={e=>set(e.target.value)} placeholder={ph} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...base,padding:"12px 14px",resize:"none"}}/>;return(<div style={{position:"relative"}}>{icon&&<div style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:c.t3}}><Icon name={icon} size={15}/></div>}<input list={list} type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} onFocus={()=>setF(true)} onBlur={()=>setF(false)} style={{...base,padding:icon?"12px 14px 12px 40px":"12px 14px"}}/></div>);}
 
@@ -931,14 +1034,16 @@ function AppComponent() {
   const[done,setDone]=useState(false);
   const[offer,setOffer]=useState({from:"",to:"",date:"",time:"",seats:2,price:5,tags:[],note:"",rec:false,days:[],stops:[]});
   const[offerDone,setOfferDone]=useState(false);
-  const[prof,setProf]=useState({name:"Thomas E.",univ:"EPFL",city:"Lausanne",bio:"Étudiant en informatique",cancelCount:0,penalized:false});
+  const[prof,setProf]=useState({name:"Thomas E.",univ:"EPFL",city:"Lausanne",bio:"Étudiant en informatique",cancelCount:0,penalized:false,photo:null});
   const[editProf,setEditProf]=useState(false);
+  const[showPhotoSetup,setShowPhotoSetup]=useState(false);
   // Notation
   const[showRev,setShowRev]=useState(false);
   const[revStars,setRevStars]=useState(5);
   const[revTxt,setRevTxt]=useState("");
   const[revAnon,setRevAnon]=useState(false);
-  const[revTarget,setRevTarget]=useState(null); // {id, name, type:'driver'|'passenger'}
+  const[revTarget,setRevTarget]=useState(null);
+  const[revDetails,setRevDetails]=useState({});
   // Annulation
   const[showCancel,setShowCancel]=useState(false);
   const[cancelRide,setCancelRide]=useState(null);
@@ -949,9 +1054,14 @@ function AppComponent() {
   const[notifOn,setNotifOn]=useState(true);
   // Étapes conducteur (offre)
   const[newStop,setNewStop]=useState("");
+  // Pricing dynamique
+  const[essencePrice,setEssencePrice]=useState(ESSENCE_ACTUEL);
+  const[priceOverride,setPriceOverride]=useState(null); // null = auto, sinon valeur manuelle
+  const[showPricingInfo,setShowPricingInfo]=useState(false);
   const endRef=useRef(null);
   const unread=notifs.filter(n=>!n.read).length;
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[chat,msgs]);
+  useEffect(()=>{if(!prof.photo)setShowPhotoSetup(true);},[]);
 
   const doSearch=()=>{
     let r=[...rides];
@@ -1106,21 +1216,54 @@ function AppComponent() {
       <Sheet open={showRev} onClose={()=>setShowRev(false)}>
         <div style={{padding:"20px 20px 40px"}}>
           <p style={{fontSize:20,fontWeight:700,marginBottom:4}}>Laisser un avis</p>
-          {revTarget&&<p style={{fontSize:13,color:c.t2,marginBottom:20}}>Pour {revTarget.name} · {revTarget.type==="driver"?"Conducteur":"Passager"}</p>}
-          <div style={{display:"flex",justifyContent:"center",gap:14,marginBottom:24}}>
-            {[1,2,3,4,5].map(s=>(
-              <button key={s} onClick={()=>setRevStars(s)} style={{background:"none",border:"none",padding:2,transition:"transform .1s",transform:s<=revStars?"scale(1.2)":"scale(1)"}}>
-                <Icon name="star" size={32} color={s<=revStars?"#FDCB6E":c.bg4} sw={s<=revStars?0:1.5}/>
-              </button>
-            ))}
-          </div>
-          <div style={{textAlign:"center",marginBottom:16}}>
-            <p style={{fontSize:13,color:c.t2,fontWeight:500}}>
+          {revTarget&&<p style={{fontSize:13,color:c.t2,marginBottom:20}}>Pour <strong>{revTarget.name}</strong> · {revTarget.type==="driver"?"Conducteur 🚗":"Passager 🧑‍🤝‍🧑"}</p>}
+
+          {/* Étoiles grandes et claires */}
+          <div style={{background:c.bg2,borderRadius:14,padding:"20px 16px",marginBottom:16,textAlign:"center"}}>
+            <p style={{fontSize:12,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:14}}>Note globale</p>
+            <div style={{display:"flex",justifyContent:"center",gap:10,marginBottom:10}}>
+              {[1,2,3,4,5].map(s=>(
+                <button key={s} onClick={()=>setRevStars(s)} style={{background:"none",border:"none",padding:4,transition:"transform .15s",transform:s<=revStars?"scale(1.25)":"scale(1)"}}>
+                  <Icon name="star" size={36} color={s<=revStars?"#FDCB6E":c.bg4} sw={s<=revStars?0:1.5}/>
+                </button>
+              ))}
+            </div>
+            <p style={{fontSize:22,fontWeight:700,color:c.t1,margin:"0 0 4px"}}>{revStars}/5</p>
+            <p style={{fontSize:13,color:c.t2,margin:0}}>
               {revStars===1?"😬 Très mauvaise expérience":revStars===2?"😕 Mauvaise expérience":revStars===3?"😐 Expérience correcte":revStars===4?"😊 Bonne expérience":"🌟 Excellente expérience"}
             </p>
           </div>
-          <Field rows={3} val={revTxt} set={setRevTxt} ph="Décrivez votre expérience (optionnel)…"/>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:14,padding:"12px 14px",background:c.bg2,borderRadius:10,border:`1px solid ${c.border}`,cursor:"pointer"}} onClick={()=>setRevAnon(!revAnon)}>
+
+          {/* Critères détaillés */}
+          <div style={{background:c.bg2,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+            <p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Évaluation détaillée</p>
+            {(revTarget?.type==="driver"?[
+              {label:"Ponctualité",key:"punct"},
+              {label:"Conduite",key:"drive"},
+              {label:"Amabilité",key:"nice"},
+            ]:[
+              {label:"Ponctualité",key:"punct"},
+              {label:"Comportement",key:"nice"},
+              {label:"Communication",key:"comm"},
+            ]).map(({label,key})=>(
+              <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <p style={{fontSize:13,fontWeight:500,color:c.t1,margin:0}}>{label}</p>
+                <div style={{display:"flex",gap:4}}>
+                  {[1,2,3,4,5].map(s=>(
+                    <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:1}}>
+                      <Icon name="star" size={16} color={s<=(revDetails[key]||0)?"#FDCB6E":c.bg4} sw={s<=(revDetails[key]||0)?0:1.5}/>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Commentaire libre */}
+          <Field rows={3} val={revTxt} set={setRevTxt} ph="Partagez votre expérience (optionnel)…"/>
+
+          {/* Anonymat */}
+          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12,padding:"12px 14px",background:c.bg2,borderRadius:10,border:`1px solid ${c.border}`,cursor:"pointer"}} onClick={()=>setRevAnon(!revAnon)}>
             <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${revAnon?c.green:c.borderMid}`,background:revAnon?c.green:"none",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .15s"}}>
               {revAnon&&<Icon name="check" size={11} color="#fff" sw={3}/>}
             </div>
@@ -1129,11 +1272,46 @@ function AppComponent() {
               <p style={{fontSize:12,color:c.t2,marginTop:2}}>Votre nom ne sera pas affiché</p>
             </div>
           </div>
+
           <div style={{marginTop:14}}>
-            <Btn onClick={()=>{setShowRev(false);setNotifs(p=>[{id:Date.now(),title:"Avis envoyé ⭐",sub:`${revStars}/5 étoiles${revAnon?" (anonyme)":""}`,time:"À l'instant",read:false,icon:"star"},...p]);}}>
-              Envoyer l'avis
+            <Btn onClick={()=>{setShowRev(false);setRevDetails({});setNotifs(p=>[{id:Date.now(),title:"Avis envoyé ⭐",sub:`${revStars}/5 étoiles pour ${revTarget?.name||""}${revAnon?" (anonyme)":""}`,time:"À l'instant",read:false,icon:"star"},...p]);}}>
+              Publier l'avis
             </Btn>
           </div>
+        </div>
+      </Sheet>
+
+      {/* ── SHEET PHOTO DE PROFIL ── */}
+      <Sheet open={showPhotoSetup} onClose={()=>{}}>
+        <div style={{padding:"20px 20px 40px"}}>
+          <p style={{fontSize:20,fontWeight:700,marginBottom:4}}>📸 Photo de profil requise</p>
+          <p style={{fontSize:13,color:c.t2,marginBottom:20,lineHeight:1.6}}>Pour renforcer la confiance dans la communauté, une photo de profil est obligatoire. Choisissez parmi les avatars disponibles ou importez la vôtre.</p>
+          <p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Choisir un avatar</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+            {[1,2,3,4,5,6,7,8,10,11,12,13,14,15,16,17].map(seed=>{
+              const url=`https://picsum.photos/seed/avatar${seed}/80/80`;
+              const selected=prof.photo===url;
+              return <div key={seed} onClick={()=>setProf(p=>({...p,photo:url}))} style={{cursor:"pointer",borderRadius:12,border:`2px solid ${selected?c.green:c.border}`,overflow:"hidden",aspectRatio:"1",transition:"border-color .15s",position:"relative"}}>
+                <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                {selected&&<div style={{position:"absolute",inset:0,background:"rgba(62,207,163,.3)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={22} color="#fff" sw={2.5}/></div>}
+              </div>;
+            })}
+          </div>
+          <div style={{marginBottom:12}}>
+            <label style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:c.bg2,borderRadius:10,border:`1px solid ${c.border}`,cursor:"pointer"}}>
+              <Icon name="plus" size={16} color={c.t2}/>
+              <span style={{fontSize:14,fontWeight:500,color:c.t1}}>Importer ma propre photo</span>
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>setProf(p=>({...p,photo:ev.target.result}));r.readAsDataURL(f);}}}/>
+            </label>
+          </div>
+          {prof.photo&&<div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+            <div style={{textAlign:"center"}}>
+              <p style={{fontSize:12,color:c.t3,marginBottom:8}}>Aperçu</p>
+              <Avi ini={prof.name.split(" ").map(w=>w[0]).join("")} size={64} photo={prof.photo} ok/>
+            </div>
+          </div>}
+          <Btn disabled={!prof.photo} onClick={()=>setShowPhotoSetup(false)}>Confirmer ma photo</Btn>
+          <p style={{fontSize:11,color:c.t3,textAlign:"center",marginTop:10,lineHeight:1.5}}>Photos libres de droit · Unsplash via picsum.photos</p>
         </div>
       </Sheet>
 
@@ -1241,17 +1419,84 @@ function AppComponent() {
               <Icon name="warn" size={16} color="#b7860b"/>
               <div>
                 <p style={{fontSize:13,fontWeight:600,color:"#b7860b",margin:"0 0 3px"}}>Créneau hors-horaire ✨</p>
-                <p style={{fontSize:12,color:"#b7860b",margin:0,lineHeight:1.5}}>Votre trajet est avant 6h30 ou après 22h. Une majoration de +25% sera appliquée automatiquement pour valoriser votre disponibilité. Prix affiché aux passagers : <strong>{calcDisplayPrice(offer.price,offer.time)} CHF</strong>.</p>
+                <p style={{fontSize:12,color:"#b7860b",margin:0,lineHeight:1.5}}>Avant 6h30 ou après 22h : majoration +25% auto. Prix passagers : <strong>{calcDisplayPrice(priceOverride!==null?priceOverride:(calcRecommendedPrice(offer.from,offer.to,offer.seats)||offer.price),offer.time)} CHF</strong>.</p>
               </div>
             </div>}
 
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              {[{label:"PLACES",key:"seats",min:1,max:7},{label:isOffPeak(offer.time)?`PRIX AFFICHÉ (${calcDisplayPrice(offer.price,offer.time)} CHF)`:"PRIX (CHF)",key:"price",min:1,max:30}].map(({label,key,min,max})=>(<div key={key} style={{background:c.bg2,border:`1px solid ${c.border}`,borderRadius:10,padding:14}}><p style={{fontSize:10,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",margin:"0 0 12px"}}>{label}</p><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><button onClick={()=>setOffer(f=>({...f,[key]:Math.max(min,f[key]-1)}))} style={{width:28,height:28,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="minus" size={14}/></button><span style={{fontSize:22,fontWeight:700}}>{offer[key]}</span><button onClick={()=>setOffer(f=>({...f,[key]:Math.min(max,f[key]+1)}))} style={{width:28,height:28,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plus" size={14}/></button></div></div>))}
+            {/* Bloc places */}
+            <div style={{background:c.bg2,border:`1px solid ${c.border}`,borderRadius:10,padding:14}}>
+              <p style={{fontSize:10,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",margin:"0 0 12px"}}>PLACES DISPONIBLES</p>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <button onClick={()=>setOffer(f=>({...f,seats:Math.max(1,f.seats-1)}))} style={{width:32,height:32,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="minus" size={14}/></button>
+                <div style={{textAlign:"center"}}>
+                  <span style={{fontSize:26,fontWeight:700}}>{offer.seats}</span>
+                  <p style={{fontSize:11,color:c.t3,margin:0}}>passager{offer.seats>1?"s":""}</p>
+                </div>
+                <button onClick={()=>setOffer(f=>({...f,seats:Math.min(7,f.seats+1)}))} style={{width:32,height:32,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plus" size={14}/></button>
+              </div>
             </div>
+
+            {/* Bloc pricing dynamique */}
+            {(()=>{
+              const rec = calcRecommendedPrice(offer.from, offer.to, offer.seats);
+              const km = offer.from&&offer.to ? getKm(offer.from,offer.to) : null;
+              const zone = offer.from&&offer.to ? getZoneType(offer.from,offer.to) : null;
+              const currentPrice = priceOverride !== null ? priceOverride : (rec||offer.price);
+              const minP = rec ? Math.max(1,Math.round(rec*(1-MARGIN_DRIVER)*2)/2) : 1;
+              const maxP = rec ? Math.round(rec*(1+MARGIN_DRIVER)*2)/2 : 30;
+              const displayFinal = calcDisplayPrice(currentPrice, offer.time);
+              return <div style={{background:c.bg2,border:`1px solid ${c.border}`,borderRadius:10,padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <p style={{fontSize:10,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",margin:0}}>PRIX PAR PASSAGER</p>
+                  <button onClick={()=>setShowPricingInfo(!showPricingInfo)} style={{background:"none",border:"none",fontSize:11,color:c.t2,fontWeight:500,display:"flex",alignItems:"center",gap:3,cursor:"pointer"}}>
+                    <Icon name="warn" size={12} color={c.t3}/>Comment calculé ?
+                  </button>
+                </div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                  <button onClick={()=>setPriceOverride(p=>Math.max(1,Math.round(((p!==null?p:rec)||1)*2)/2-0.5))} style={{width:36,height:36,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="minus" size={16}/></button>
+                  <div style={{textAlign:"center"}}>
+                    <p style={{fontSize:30,fontWeight:700,margin:0,color:isOffPeak(offer.time)?c.orange:c.t1,letterSpacing:"-.5px"}}>{currentPrice.toFixed(1)} <span style={{fontSize:14,fontWeight:400,color:c.t3}}>CHF</span></p>
+                    {isOffPeak(offer.time)&&<p style={{fontSize:11,color:c.orange,margin:"2px 0 0",fontWeight:500}}>→ {displayFinal} CHF affiché (+25%)</p>}
+                    {!isOffPeak(offer.time)&&rec&&<p style={{fontSize:10,color:priceOverride===null?c.green:c.t3,margin:"2px 0 0",fontWeight:500}}>{priceOverride===null?"✓ Prix recommandé":"Modifié manuellement"}</p>}
+                  </div>
+                  <button onClick={()=>setPriceOverride(p=>Math.min(30,Math.round(((p!==null?p:rec)||1)*2)/2+0.5))} style={{width:36,height:36,borderRadius:"50%",background:c.bg4,border:"none",color:c.t1,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="plus" size={16}/></button>
+                </div>
+                {rec&&<input type="range" min={1} max={30} step={0.5} value={currentPrice} onChange={e=>setPriceOverride(parseFloat(e.target.value))} style={{width:"100%",accentColor:c.green,marginBottom:8}}/>}
+                {rec&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:10,color:c.t3}}>{minP} CHF</span>
+                  <span style={{fontSize:11,color:c.green,fontWeight:600,background:c.greenDim,padding:"2px 8px",borderRadius:4}}>Recommandé : {rec} CHF</span>
+                  <span style={{fontSize:10,color:c.t3}}>{maxP} CHF</span>
+                </div>}
+                {priceOverride!==null&&rec&&<button onClick={()=>setPriceOverride(null)} style={{width:"100%",padding:"7px",borderRadius:8,border:`1px solid ${c.border}`,background:"none",fontSize:12,fontWeight:500,color:c.t2,marginBottom:8,cursor:"pointer"}}>↺ Revenir au prix recommandé ({rec} CHF)</button>}
+                {showPricingInfo&&km&&zone&&<div style={{marginTop:8,background:c.bg0,borderRadius:8,padding:"10px 12px",border:`1px solid ${c.border}`}}>
+                  <p style={{fontSize:11,fontWeight:600,color:c.t2,marginBottom:8}}>Détail du calcul TCS</p>
+                  {[
+                    [`Distance`,`${km} km`],
+                    [`Zone`,zone==="mountain"?"🏔 Montagne (+15%)":zone==="autoroute"?"🛣 Autoroute (−5%)":"⚡ Mixte (0%)"],
+                    [`Distance`,km<20?"Court +15%":km>80?"Long −10%":"Moyen (0%)"],
+                    [`SP95 actuel`,`${ESSENCE_ACTUEL} CHF/L (ref. ${ESSENCE_REF})`],
+                    [`Prix/km calc.`,`${(KM_BASE*(ESSENCE_ACTUEL/ESSENCE_REF)*ZONE_FACTOR[zone]*getDistFactor(km)).toFixed(3)} CHF/km`],
+                    [`Total ÷ ${offer.seats} passager${offer.seats>1?"s":""}`,`${rec} CHF`],
+                  ].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:c.t3}}>{l}</span><span style={{fontSize:11,color:c.t1,fontWeight:500}}>{v}</span></div>)}
+                  <p style={{fontSize:10,color:c.t3,marginTop:6,lineHeight:1.4}}>Plancher {KM_MIN} CHF/km · Plafond {KM_MAX} CHF/km · Marge ±{MARGIN_DRIVER*100}%</p>
+                </div>}
+                <div style={{marginTop:8,display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:c.bg0,borderRadius:7,border:`1px solid ${c.border}`}}>
+                  <span style={{fontSize:16}}>⛽</span>
+                  <p style={{fontSize:11,fontWeight:500,color:c.t1,margin:0}}>SP95 : {ESSENCE_ACTUEL} CHF/L <span style={{color:c.t3}}>(TCS, avril 2026)</span></p>
+                </div>
+              </div>;
+            })()}
 
             <Field rows={3} val={offer.note} set={v=>setOffer(f=>({...f,note:v}))} ph="Point de rendez-vous, infos utiles…"/>
             <div style={{background:c.bg2,border:`1px solid ${c.border}`,borderRadius:10,padding:14}}><p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",margin:"0 0 10px"}}>Préférences</p><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TAGS.map(tag=>{const on=offer.tags.includes(tag);return(<button key={tag} onClick={()=>setOffer(f=>({...f,tags:on?f.tags.filter(t=>t!==tag):[...f.tags,tag]}))} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${on?c.green:c.border}`,background:on?c.green:"none",color:on?"#fff":c.t2,fontSize:12,fontWeight:on?600:400}}>{tag}</button>);})}</div></div>
-            <Btn disabled={!offer.from||!offer.to||!offer.date||!offer.time} onClick={()=>{const finalP=calcDisplayPrice(offer.price,offer.time);const r={id:Date.now(),driver:prof.name,ini:prof.name.split(" ").map(w=>w[0]).join(""),univ:prof.univ,rating:5.0,rev:0,from:offer.from,to:offer.to,date:offer.date,time:offer.time,seats:offer.seats,left:offer.seats,price:offer.price,displayPrice:finalP,tags:offer.tags,ok:true,co2:parseFloat((Math.random()*3+1).toFixed(1)),km:Math.floor(Math.random()*100+20),dur:"~1h",note:offer.note,pass:[],isOffer:true,stops:offer.stops};setRides(p=>[...p,r]);setMyOffers(p=>[...p,r]);setOfferDone(true);}}>Publier le trajet</Btn>
+            <Btn disabled={!offer.from||!offer.to||!offer.date||!offer.time} onClick={()=>{
+              const rec=calcRecommendedPrice(offer.from,offer.to,offer.seats);
+              const basePrice=priceOverride!==null?priceOverride:(rec||offer.price);
+              const finalP=calcDisplayPrice(basePrice,offer.time);
+              const km=getKm(offer.from,offer.to);
+              const r={id:Date.now(),driver:prof.name,ini:prof.name.split(" ").map(w=>w[0]).join(""),univ:prof.univ,rating:5.0,rev:0,from:offer.from,to:offer.to,date:offer.date,time:offer.time,seats:offer.seats,left:offer.seats,price:basePrice,displayPrice:finalP,tags:offer.tags,ok:true,co2:parseFloat((km*0.022).toFixed(1)),km,dur:km<50?"~45 min":km<100?"~1h":km<200?"~1h30":"~2h",note:offer.note,pass:[],isOffer:true,stops:offer.stops};
+              setRides(p=>[...p,r]);setMyOffers(p=>[...p,r]);setPriceOverride(null);setOfferDone(true);
+            }}>Publier le trajet</Btn>
           </div></>
         )}</div>)}
 
@@ -1286,7 +1531,23 @@ function AppComponent() {
         {tab==="notifications"&&(<div className="fu"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:24,fontWeight:700,letterSpacing:"-.5px",margin:0}}>Notifications</h2><button onClick={()=>setNotifs(n=>n.map(x=>({...x,read:true})))} style={{fontSize:13,fontWeight:500,color:c.t2,background:"none",border:"none"}}>Tout lire</button></div><div style={{background:c.bg1,border:`1px solid ${c.border}`,borderRadius:14,overflow:"hidden"}}>{notifs.map((n,i)=>(<div key={n.id}><div onClick={()=>setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x))} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 16px",cursor:"pointer",background:n.read?"none":"rgba(255,255,255,.02)"}}><div style={{width:38,height:38,borderRadius:10,background:n.icon==="warn"?c.redDim:n.icon==="x"?c.redDim:c.bg3,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name={n.icon==="warn"||n.icon==="x"?n.icon:n.icon} size={18} color={n.icon==="warn"||n.icon==="x"?c.red:n.read?c.t3:c.t1}/></div><div style={{flex:1}}><p style={{fontSize:14,fontWeight:n.read?400:600,color:n.read?c.t2:c.t1,margin:0,lineHeight:1.4}}>{n.title}</p><p style={{fontSize:12,color:c.t3,marginTop:2}}>{n.sub}</p><p style={{fontSize:11,color:c.t3,marginTop:2}}>{n.time}</p></div>{!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:c.t1,flexShrink:0,marginTop:5}}/>}</div>{i<notifs.length-1&&<Hr ml={66}/>}</div>))}</div></div>)}
 
         {/* ── PROFIL ── */}
-        {tab==="profile"&&(<div className="fu"><h2 style={{fontSize:24,fontWeight:700,letterSpacing:"-.5px",marginBottom:20}}>Profil</h2><div style={{textAlign:"center",marginBottom:28}}><div style={{width:80,height:80,borderRadius:"50%",background:c.bg3,border:`1px solid ${c.borderMid}`,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:700,position:"relative"}}>{prof.name.split(" ").map(w=>w[0]).join("")}<div style={{position:"absolute",bottom:0,right:0,width:22,height:22,borderRadius:"50%",background:c.green,border:`2px solid ${c.bg0}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={11} color="#fff" sw={2.5}/></div></div>{!editProf?(<><p style={{fontSize:20,fontWeight:700,margin:0}}>{prof.name}</p><p style={{fontSize:13,color:c.t2,marginTop:4}}>{prof.univ} · {prof.city}</p><p style={{fontSize:13,color:c.t3,marginTop:4,fontStyle:"italic"}}>{prof.bio}</p><button onClick={()=>setEditProf(true)} style={{marginTop:14,display:"inline-flex",alignItems:"center",gap:6,padding:"8px 18px",borderRadius:9,border:`1px solid ${c.borderMid}`,background:"none",fontSize:13,fontWeight:500,color:c.t1}}><Icon name="edit" size={13} color={c.t2}/>Modifier</button></>):(<div style={{textAlign:"left",marginTop:14}}><div style={{display:"flex",flexDirection:"column",gap:10}}><Field ph="Nom complet" val={prof.name} set={v=>setProf(p=>({...p,name:v}))}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Field ph="Université" val={prof.univ} set={v=>setProf(p=>({...p,univ:v}))}/><Field ph="Ville" val={prof.city} set={v=>setProf(p=>({...p,city:v}))} list="cities"/></div><Field rows={2} ph="Bio…" val={prof.bio} set={v=>setProf(p=>({...p,bio:v}))}/><Btn onClick={()=>setEditProf(false)}>Enregistrer</Btn></div></div>)}</div>
+        {tab==="profile"&&(<div className="fu"><h2 style={{fontSize:24,fontWeight:700,letterSpacing:"-.5px",marginBottom:20}}>Profil</h2>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            {/* Avatar cliquable pour changer */}
+            <div style={{position:"relative",display:"inline-block",marginBottom:14}}>
+              <Avi ini={prof.name.split(" ").map(w=>w[0]).join("")} size={80} photo={prof.photo} ok/>
+              <button onClick={()=>setShowPhotoSetup(true)} style={{position:"absolute",bottom:0,right:0,width:26,height:26,borderRadius:"50%",background:c.t1,border:`2px solid ${c.bg0}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                <Icon name="edit" size={11} color="#fff"/>
+              </button>
+            </div>
+            {!prof.photo&&<p style={{fontSize:11,color:c.red,marginBottom:8,fontWeight:500}}>⚠️ Photo de profil requise</p>}
+            {!editProf?(<>
+              <p style={{fontSize:20,fontWeight:700,margin:0}}>{prof.name}</p>
+              <p style={{fontSize:13,color:c.t2,marginTop:4}}>{prof.univ} · {prof.city}</p>
+              <p style={{fontSize:13,color:c.t3,marginTop:4,fontStyle:"italic"}}>{prof.bio}</p>
+              <button onClick={()=>setEditProf(true)} style={{marginTop:14,display:"inline-flex",alignItems:"center",gap:6,padding:"8px 18px",borderRadius:9,border:`1px solid ${c.borderMid}`,background:"none",fontSize:13,fontWeight:500,color:c.t1}}><Icon name="edit" size={13} color={c.t2}/>Modifier</button>
+            </>):(<div style={{textAlign:"left",marginTop:14}}><div style={{display:"flex",flexDirection:"column",gap:10}}><Field ph="Nom complet" val={prof.name} set={v=>setProf(p=>({...p,name:v}))}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Field ph="Université" val={prof.univ} set={v=>setProf(p=>({...p,univ:v}))}/><Field ph="Ville" val={prof.city} set={v=>setProf(p=>({...p,city:v}))} list="cities"/></div><Field rows={2} ph="Bio…" val={prof.bio} set={v=>setProf(p=>({...p,bio:v}))}/><Btn onClick={()=>setEditProf(false)}>Enregistrer</Btn></div></div>)}
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:28}}>{[[myRides.length+12,"Trajets"],[`${Math.round((myRides.length+12)*2.1)} kg`,"CO₂ économisé"],[`${(myRides.length+12)*5} CHF`,"Économies"],["4.9 / 5","Note moyenne"]].map(([v,l])=>(<div key={l} style={{background:c.bg1,border:`1px solid ${c.border}`,borderRadius:12,padding:"14px 12px"}}><p style={{fontSize:22,fontWeight:700,letterSpacing:"-.5px",color:c.t1,margin:0}}>{v}</p><p style={{fontSize:11,fontWeight:500,color:c.t3,marginTop:4}}>{l}</p></div>))}</div>
 
           {/* Stats annulations */}
