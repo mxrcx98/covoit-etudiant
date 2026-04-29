@@ -912,14 +912,14 @@ function Stars({r,n,big=false}){
   </span>);
 }
 
-// Photos de profil fixes par seed (Unsplash via picsum - libres de droit)
+// Photos de vraies personnes libres de droit — randomuser.me (portraits fixes par ID)
 const PROFILE_PHOTOS={
-  "CB":"https://picsum.photos/seed/CB-camille/80/80",
-  "HM":"https://picsum.photos/seed/HM-hugo/80/80",
-  "SR":"https://picsum.photos/seed/SR-sofia/80/80",
-  "TK":"https://picsum.photos/seed/TK-theo/80/80",
-  "ID":"https://picsum.photos/seed/ID-ines/80/80",
-  "RV":"https://picsum.photos/seed/RV-romain/80/80",
+  "CB":"https://randomuser.me/api/portraits/women/44.jpg",  // Camille B.
+  "HM":"https://randomuser.me/api/portraits/men/32.jpg",    // Hugo M.
+  "SR":"https://randomuser.me/api/portraits/women/68.jpg",  // Sofia R.
+  "TK":"https://randomuser.me/api/portraits/men/75.jpg",    // Théo K.
+  "ID":"https://randomuser.me/api/portraits/women/26.jpg",  // Inès D.
+  "RV":"https://randomuser.me/api/portraits/men/18.jpg",    // Romain V.
 };
 function Avi({ini,size=40,ok=false,photo=null}){
   const src=photo||(ini&&PROFILE_PHOTOS[ini])||null;
@@ -1249,11 +1249,12 @@ function AppComponent() {
               <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <p style={{fontSize:13,fontWeight:500,color:c.t1,margin:0}}>{label}</p>
                 <div style={{display:"flex",gap:4}}>
-                  {[1,2,3,4,5].map(s=>(
-                    <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:1}}>
-                      <Icon name="star" size={16} color={s<=(revDetails[key]||0)?"#FDCB6E":c.bg4} sw={s<=(revDetails[key]||0)?0:1.5}/>
-                    </button>
-                  ))}
+                  {[1,2,3,4,5].map(s=>{
+                    const filled=s<=(revDetails[key]||0);
+                    return <button key={s} onClick={()=>setRevDetails(p=>({...p,[key]:s}))} style={{background:"none",border:"none",padding:1,cursor:"pointer"}}>
+                      <Icon name="star" size={18} color={filled?"#FDCB6E":"#9BA8B0"} sw={filled?0:1.8}/>
+                    </button>;
+                  })}
                 </div>
               </div>
             ))}
@@ -1288,12 +1289,28 @@ function AppComponent() {
           <p style={{fontSize:13,color:c.t2,marginBottom:20,lineHeight:1.6}}>Pour renforcer la confiance dans la communauté, une photo de profil est obligatoire. Choisissez parmi les avatars disponibles ou importez la vôtre.</p>
           <p style={{fontSize:11,fontWeight:600,color:c.t3,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Choisir un avatar</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
-            {[1,2,3,4,5,6,7,8,10,11,12,13,14,15,16,17].map(seed=>{
-              const url=`https://picsum.photos/seed/avatar${seed}/80/80`;
+            {[
+              {url:"https://randomuser.me/api/portraits/women/44.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/32.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/68.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/75.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/26.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/18.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/55.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/46.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/12.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/61.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/33.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/90.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/79.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/5.jpg"},
+              {url:"https://randomuser.me/api/portraits/women/21.jpg"},
+              {url:"https://randomuser.me/api/portraits/men/52.jpg"},
+            ].map(({url},i)=>{
               const selected=prof.photo===url;
-              return <div key={seed} onClick={()=>setProf(p=>({...p,photo:url}))} style={{cursor:"pointer",borderRadius:12,border:`2px solid ${selected?c.green:c.border}`,overflow:"hidden",aspectRatio:"1",transition:"border-color .15s",position:"relative"}}>
+              return <div key={i} onClick={()=>setProf(p=>({...p,photo:url}))} style={{cursor:"pointer",borderRadius:12,border:`2px solid ${selected?c.green:c.border}`,overflow:"hidden",aspectRatio:"1",transition:"border-color .15s",position:"relative"}}>
                 <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-                {selected&&<div style={{position:"absolute",inset:0,background:"rgba(62,207,163,.3)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={22} color="#fff" sw={2.5}/></div>}
+                {selected&&<div style={{position:"absolute",inset:0,background:"rgba(62,207,163,.35)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={22} color="#fff" sw={2.5}/></div>}
               </div>;
             })}
           </div>
@@ -1311,7 +1328,7 @@ function AppComponent() {
             </div>
           </div>}
           <Btn disabled={!prof.photo} onClick={()=>setShowPhotoSetup(false)}>Confirmer ma photo</Btn>
-          <p style={{fontSize:11,color:c.t3,textAlign:"center",marginTop:10,lineHeight:1.5}}>Photos libres de droit · Unsplash via picsum.photos</p>
+          <p style={{fontSize:11,color:c.t3,textAlign:"center",marginTop:10,lineHeight:1.5}}>Photos de vraies personnes · randomuser.me · Libres de droit</p>
         </div>
       </Sheet>
 
